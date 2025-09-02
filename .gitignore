@@ -1,0 +1,18 @@
+# General
+.DS_Store
+.env
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+backend/.mypy_cache/
+backend/.ruff_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
