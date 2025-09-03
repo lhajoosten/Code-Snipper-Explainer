@@ -1,3 +1,1 @@
-"""
-Application layer package.
-"""
+# Application layer - use cases and application services

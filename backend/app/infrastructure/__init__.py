@@ -1,3 +1,1 @@
-"""
-Infrastructure layer package.
-"""
+# Infrastructure layer - external services and adapters

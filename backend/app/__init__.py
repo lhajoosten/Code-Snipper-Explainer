@@ -1,3 +1,1 @@
-"""
-Backend application for code snippet explanation.
-"""
+# Backend application package

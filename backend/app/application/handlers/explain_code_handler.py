@@ -3,7 +3,7 @@ from app.application.commands.explain_code_command import ExplainCodeCommand
 from app.application.dto.explain_result_dto import ExplainResultDTO
 from app.application.interfaces.ai_provider import AIProvider
 from app.domain.exceptions import AIProviderError, ValidationError
-from app.domain.value_objects.code_snippet import CodeSnippet
+from app.domain.services.code_validation_service import CodeValidationService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,31 +35,26 @@ class ExplainCodeHandler(Handler[ExplainCodeCommand, ExplainResultDTO]):
             ValidationError: If the command is invalid
             AIProviderError: If the AI service fails
         """
-        # Validate command
-        if not command.code or not command.code.strip():
-            raise ValidationError("Code content is required")
-
-        if len(command.code) > 50000:  # Max length from settings
-            raise ValidationError("Code content is too long")
-
         try:
             logger.info(
                 f"Explaining code using {self._ai_provider.provider_name} provider"
             )
 
-            # Create code snippet value object
-            code_snippet = CodeSnippet(content=command.code, language=command.language)
+            # Create validated code snippet using domain service
+            code_snippet = CodeValidationService.create_code_snippet(
+                command.code, command.language
+            )
 
             # Get explanation from AI provider
             explanation = await self._ai_provider.explain_code(code_snippet)
 
-            # Convert to DTO using the correct properties
+            # Convert to DTO
             result = ExplainResultDTO(
                 explanation=explanation.explanation,
-                line_count=code_snippet.line_count,  # From code_snippet
-                character_count=code_snippet.character_count,  # From code_snippet
+                line_count=code_snippet.line_count,
+                character_count=code_snippet.character_count,
                 provider=explanation.provider,
-                placeholder=explanation.is_placeholder,  # Note: placeholder not is_placeholder
+                placeholder=explanation.is_placeholder,
             )
 
             logger.info(
@@ -67,8 +62,8 @@ class ExplainCodeHandler(Handler[ExplainCodeCommand, ExplainResultDTO]):
             )
             return result
 
-        except AIProviderError:
-            # Re-raise AI provider errors as-is
+        except (ValidationError, AIProviderError):
+            # Re-raise domain and AI provider errors as-is
             raise
         except Exception as e:
             logger.error(f"Unexpected error in explain handler: {e}")

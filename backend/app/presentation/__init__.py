@@ -1,3 +1,1 @@
-"""
-Presentation layer package.
-"""
+# Presentation layer - API endpoints and HTTP concerns
