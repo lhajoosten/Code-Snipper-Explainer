@@ -1,28 +1,36 @@
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
-from typing import Optional
-import os
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
     """Application settings using Pydantic BaseSettings."""
 
     # API Settings
-    app_name: str = "Code Snippet Explainer"
-    app_version: str = "0.1.0"
+    api_title: str = "AI Code Assistant"
+    api_description: str = "AI-powered code explanation and analysis"
+    api_version: str = "1.0.0"
     debug: bool = False
 
     # AI Provider Settings
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o"
-    ai_provider: str = "fake"  # "fake" or "openai"
+    ai_provider: str = "openai"
+    ai_timeout: int = 30
 
-    # Request Limits
+    # Application Settings
     max_code_length: int = 50000
+    log_level: str = "INFO"
     request_timeout: int = 30
 
-    # CORS Settings
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # CORS Configuration
+    cors_origins: List[str] = [
+        "http://localhost:5173",  # Vite dev server
+        "http://127.0.0.1:5173",
+    ]
+    cors_allow_credentials: bool = True
+    cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    cors_allow_headers: List[str] = ["*"]
 
     @field_validator("ai_provider")
     @classmethod
@@ -40,6 +48,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"
 
