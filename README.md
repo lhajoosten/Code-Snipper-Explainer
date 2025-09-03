@@ -90,7 +90,7 @@ POST /api/v1/explain
   -> Presentation builds ExplainCodeCommand
   -> Dispatcher finds ExplainCodeHandler
   -> Handler creates CodeSnippet (domain)
-  -> Calls AIProvider.explain(snippet)
+  -> Calls AIProvider.explain_code(snippet)
   -> Returns ExplanationResultDTO
   -> Response serialized to client
   -> Frontend renders explanation metadata
@@ -291,7 +291,7 @@ Interface (simplified):
 
 ```python
 class AIProvider(ABC):
-    async def explain(self, code: str) -> str: ...
+    async def explain_code(self, code: str) -> str: ...
     async def generate_tests(self, code: str, language: str | None = None) -> str: ...
     async def refactor(self, code: str, goal: str | None = None) -> str: ...
 ```
