@@ -1,5 +1,6 @@
 import httpx
 import logging
+from typing import Optional
 
 from app.application.interfaces.ai_provider import AIProvider
 from app.domain.exceptions import (
@@ -18,7 +19,11 @@ class OpenAIProvider(AIProvider):
     """OpenAI implementation of the AI provider interface."""
 
     def __init__(
-        self, api_key: str, model: str = "gpt-4o-mini", timeout: int = 30
+        self,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        timeout: int = 30,
+        max_retries: int = 3,
     ) -> None:
         """
         Initialize OpenAI provider.
@@ -27,6 +32,7 @@ class OpenAIProvider(AIProvider):
             api_key: OpenAI API key
             model: Model to use for completions
             timeout: Request timeout in seconds
+            max_retries: Maximum number of retry attempts
         """
         if not api_key:
             raise ValueError("OpenAI API key is required")
@@ -34,8 +40,26 @@ class OpenAIProvider(AIProvider):
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+        self._max_retries = max_retries
         self._base_url = "https://api.openai.com/v1"
         self._prompts = ExplainPrompts()
+
+        # Initialize HTTP client with connection pooling
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client with connection pooling."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(self._timeout),
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            )
+        return self._client
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
 
     @property
     def provider_name(self) -> str:
@@ -130,11 +154,11 @@ class OpenAIProvider(AIProvider):
             "stream": False,
         }
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(
-                f"{self._base_url}/chat/completions",  # Correct endpoint
-                headers=headers,
-                json=payload,
-            )
-            response.raise_for_status()
-            return response.json()
+        client = await self._get_client()
+        response = await client.post(
+            f"{self._base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+        )
+        response.raise_for_status()
+        return response.json()

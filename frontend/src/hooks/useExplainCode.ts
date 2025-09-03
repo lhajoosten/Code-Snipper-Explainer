@@ -1,59 +1,84 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { explainCodeApi, ApiServiceError } from '../services/api.service';
+import { ExplainCodeRequest, ExplainCodeResponse } from '../types';
 
-interface ExplainRequest {
-    code: string;
-    language?: string;
+interface UseExplainCodeResult {
+    isLoading: boolean;
+    error: string | null;
+    result: ExplainCodeResponse | null;
+    explainCode: (request: ExplainCodeRequest) => Promise<void>;
+    clearError: () => void;
+    clearResult: () => void;
+    clearAll: () => void;
 }
 
-interface ExplanationResult {
-    explanation: string;
-    line_count: number;
-    character_count: number;
-    provider: string;
-    placeholder: boolean;
-}
-
-export function useExplainCode() {
+export function useExplainCode(): UseExplainCodeResult {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [result, setResult] = useState<ExplanationResult | null>(null);
+    const [result, setResult] = useState<ExplainCodeResponse | null>(null);
 
-    const explainCode = async (request: ExplainRequest) => {
+    // Track current request to prevent race conditions
+    const currentRequestRef = useRef<Promise<void> | null>(null);
+
+    const explainCode = useCallback(async (request: ExplainCodeRequest) => {
+        // Validate input
+        if (!request.code?.trim()) {
+            setError('Code cannot be empty');
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         setResult(null);
 
-        try {
-            const response = await explainCodeApi(request);
-            setResult(response);
-        } catch (err) {
-            let errorMessage: string;
+        const requestPromise = (async () => {
+            try {
+                const response = await explainCodeApi(request);
+                setResult(response);
+            } catch (err) {
+                let errorMessage: string;
 
-            if (err instanceof ApiServiceError) {
-                errorMessage = err.message;
-            } else if (err instanceof Error) {
-                errorMessage = err.message;
-            } else {
-                errorMessage = 'An unexpected error occurred';
+                if (err instanceof ApiServiceError) {
+                    errorMessage = err.message;
+                } else if (err instanceof Error) {
+                    errorMessage = err.message;
+                } else {
+                    errorMessage = 'An unexpected error occurred';
+                }
+
+                setError(errorMessage);
+                console.error('Failed to explain code:', err);
             }
+        })();
 
-            setError(errorMessage);
-            console.error('Failed to explain code:', err);
+        currentRequestRef.current = requestPromise;
+
+        try {
+            await requestPromise;
         } finally {
-            setIsLoading(false);
+            // Only update loading state if this is still the current request
+            if (currentRequestRef.current === requestPromise) {
+                setIsLoading(false);
+                currentRequestRef.current = null;
+            }
         }
-    };
+    }, []);
 
-    const clearError = () => setError(null);
-    const clearResult = () => setResult(null);
+    const clearError = useCallback(() => setError(null), []);
+    const clearResult = useCallback(() => setResult(null), []);
+    const clearAll = useCallback(() => {
+        setError(null);
+        setResult(null);
+        currentRequestRef.current = null;
+    }, []);
 
     return {
-        explainCode,
         isLoading,
         error,
         result,
+        explainCode,
         clearError,
         clearResult,
+        clearAll,
     };
 }

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     api_title: str = "AI Code Assistant"
     api_description: str = "AI-powered code explanation and analysis"
     api_version: str = "1.0.0"
-    debug: bool = False
+    debug: bool = True
 
     # AI Provider Settings
     openai_api_key: Optional[str] = None

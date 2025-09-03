@@ -1,22 +1,4 @@
-// API types following backend DTOs
-interface ExplainCodeRequest {
-    code: string;
-    language?: string;
-}
-
-interface ExplainCodeResponse {
-    explanation: string;
-    line_count: number;
-    character_count: number;
-    provider: string;
-    placeholder: boolean;
-}
-
-interface ApiError {
-    type: string;
-    message: string;
-    details?: Record<string, unknown>;
-}
+import { ExplainCodeRequest, ExplainCodeResponse, ApiError, HealthResponse } from '../types';
 
 // Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -37,11 +19,45 @@ export class ApiServiceError extends Error {
 }
 
 /**
- * HTTP client wrapper with error handling and timeout support
+ * Request cache for deduplication
+ */
+class RequestCache {
+    private cache = new Map<string, Promise<any>>();
+    private readonly TTL = 5 * 60 * 1000; // 5 minutes
+
+    private generateKey(endpoint: string, options: RequestInit): string {
+        return `${endpoint}:${JSON.stringify(options.body || '')}`;
+    }
+
+    get<T>(endpoint: string, options: RequestInit): Promise<T> | null {
+        const key = this.generateKey(endpoint, options);
+        return this.cache.get(key) || null;
+    }
+
+    set<T>(endpoint: string, options: RequestInit, promise: Promise<T>): Promise<T> {
+        const key = this.generateKey(endpoint, options);
+        this.cache.set(key, promise);
+
+        // Auto-cleanup after TTL
+        setTimeout(() => {
+            this.cache.delete(key);
+        }, this.TTL);
+
+        return promise;
+    }
+
+    clear(): void {
+        this.cache.clear();
+    }
+}
+
+/**
+ * HTTP client wrapper with error handling, timeout support, and caching
  */
 class HttpClient {
     private baseUrl: string;
     private timeout: number;
+    private cache = new RequestCache();
 
     constructor(baseUrl: string, timeout: number = API_TIMEOUT) {
         this.baseUrl = baseUrl;
@@ -50,46 +66,64 @@ class HttpClient {
 
     private async request<T>(
         endpoint: string,
-        options: RequestInit = {}
+        options: RequestInit = {},
+        useCache: boolean = false
     ): Promise<T> {
+        // Check cache for GET requests or when explicitly requested
+        if (useCache || options.method === 'GET') {
+            const cached = this.cache.get<T>(endpoint, options);
+            if (cached) {
+                return cached;
+            }
+        }
+
         const url = `${this.baseUrl}${endpoint}`;
 
         // Setup timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-        try {
-            const response = await fetch(url, {
-                ...options,
-                signal: controller.signal,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers,
-                },
-            });
+        const requestPromise = (async (): Promise<T> => {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers,
+                    },
+                });
 
-            clearTimeout(timeoutId);
+                clearTimeout(timeoutId);
 
-            if (!response.ok) {
-                await this.handleErrorResponse(response);
+                if (!response.ok) {
+                    await this.handleErrorResponse(response);
+                }
+
+                return await response.json();
+            } catch (error) {
+                clearTimeout(timeoutId);
+
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    throw new ApiServiceError('Request timed out', 408);
+                }
+
+                if (error instanceof ApiServiceError) {
+                    throw error;
+                }
+
+                throw new ApiServiceError(
+                    `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
             }
+        })();
 
-            return await response.json();
-        } catch (error) {
-            clearTimeout(timeoutId);
-
-            if (error instanceof DOMException && error.name === 'AbortError') {
-                throw new ApiServiceError('Request timed out', 408);
-            }
-
-            if (error instanceof ApiServiceError) {
-                throw error;
-            }
-
-            throw new ApiServiceError(
-                `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
+        // Cache the promise for deduplication
+        if (useCache || options.method === 'GET') {
+            return this.cache.set(endpoint, options, requestPromise);
         }
+
+        return requestPromise;
     }
 
     private async handleErrorResponse(response: Response): Promise<never> {
@@ -133,17 +167,21 @@ class HttpClient {
         }
     }
 
-    async post<T>(endpoint: string, data?: unknown): Promise<T> {
+    async post<T>(endpoint: string, data?: unknown, useCache: boolean = false): Promise<T> {
         return this.request<T>(endpoint, {
             method: 'POST',
             body: data ? JSON.stringify(data) : undefined,
-        });
+        }, useCache);
     }
 
-    async get<T>(endpoint: string): Promise<T> {
+    async get<T>(endpoint: string, useCache: boolean = true): Promise<T> {
         return this.request<T>(endpoint, {
             method: 'GET',
-        });
+        }, useCache);
+    }
+
+    clearCache(): void {
+        this.cache.clear();
     }
 }
 
@@ -155,17 +193,32 @@ const httpClient = new HttpClient(API_BASE_URL);
  */
 export class ApiService {
     /**
-     * Explain code using AI
+     * Explain code using AI (with caching for identical requests)
      */
     async explainCode(request: ExplainCodeRequest): Promise<ExplainCodeResponse> {
-        return httpClient.post<ExplainCodeResponse>('/api/v1/explain/', request);
+        // Use cache for POST requests with same content (explanations are deterministic)
+        return httpClient.post<ExplainCodeResponse>('/api/v1/explain/', request, true);
     }
 
     /**
      * Health check endpoint
      */
+    async getHealth(): Promise<HealthResponse> {
+        return httpClient.get<HealthResponse>('/health');
+    }
+
+    /**
+     * Legacy ping endpoint
+     */
     async ping(): Promise<{ status: string; timestamp: string }> {
         return httpClient.get('/ping');
+    }
+
+    /**
+     * Clear API cache
+     */
+    clearCache(): void {
+        httpClient.clearCache();
     }
 }
 
@@ -178,6 +231,11 @@ export async function explainCodeApi(request: ExplainCodeRequest): Promise<Expla
 }
 
 // Export health check for Header component status indicator
+export async function healthCheckApi(): Promise<HealthResponse> {
+    return apiService.getHealth();
+}
+
+// Legacy ping export
 export async function pingApi(): Promise<{ status: string; timestamp: string }> {
     return apiService.ping();
 }

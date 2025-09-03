@@ -1,38 +1,45 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { CodeInput } from "./components/CodeInput";
 import { ExplanationOutput } from "./components/ExplanationOutput";
 import { Header } from "./components/Header";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useExplainCode } from "./hooks/useExplainCode";
+import { AppState } from "./types";
 import "./App.css";
-
-interface ExplanationResult {
-  explanation: string;
-  line_count: number;
-  character_count: number;
-  provider: string;
-  placeholder: boolean;
-}
 
 export default function App() {
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState<string>("");
-  const { explainCode, isLoading, error, result, clearError } =
+  const { explainCode, isLoading, error, result, clearError, clearAll } =
     useExplainCode();
 
-  const handleExplain = async () => {
-    if (!code.trim()) return;
+  const handleExplain = useCallback(async () => {
+    if (!code.trim()) {
+      clearError();
+      return;
+    }
 
-    clearError();
-    await explainCode({ code: code.trim(), language: language || undefined });
-  };
+    await explainCode({
+      code: code.trim(),
+      language: language || undefined,
+    });
+  }, [code, language, explainCode, clearError]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setCode("");
     setLanguage("");
-    clearError();
-  };
+    clearAll();
+  }, [clearAll]);
+
+  // Optimize code change to prevent unnecessary re-renders
+  const handleCodeChange = useCallback((newCode: string) => {
+    setCode(newCode);
+  }, []);
+
+  const handleLanguageChange = useCallback((newLanguage: string) => {
+    setLanguage(newLanguage);
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -46,8 +53,8 @@ export default function App() {
                 <CodeInput
                   code={code}
                   language={language}
-                  onCodeChange={setCode}
-                  onLanguageChange={setLanguage}
+                  onCodeChange={handleCodeChange}
+                  onLanguageChange={handleLanguageChange}
                   onExplain={handleExplain}
                   onReset={handleReset}
                   disabled={isLoading}

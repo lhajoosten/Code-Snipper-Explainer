@@ -491,16 +491,17 @@ body {
   line-height: 1.5 !important;
 }
 
-/* Enhanced inline code styling */
+/* Enhanced inline code styling for light theme */
 .explanation-content :not(pre) > code {
-  background: var(--gray-700) !important;
+  background: var(--gray-200) !important;
   color: var(--primary-700) !important;
   padding: 2px 6px !important;
   border-radius: var(--radius-sm) !important;
   font-family: var(--font-family-mono) !important;
   font-size: 0.85em !important;
   font-weight: 500 !important;
-  border: 1px solid var(--gray-600) !important;
+  border: 1px solid var(--gray-300) !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.03);
 }
 
 /* Scrollbar styling for code blocks */

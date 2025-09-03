@@ -1,29 +1,20 @@
-import React from "react";
+import React, { memo } from "react";
+import { CodeInputProps, SupportedLanguage } from "../types";
 
-interface CodeInputProps {
-  code: string;
-  language: string;
-  onCodeChange: (code: string) => void;
-  onLanguageChange: (language: string) => void;
-  onExplain: () => void;
-  onReset: () => void;
-  disabled?: boolean;
-}
-
-const SUPPORTED_LANGUAGES = [
+const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { value: "", label: "Auto-detect" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "python", label: "Python" },
-  { value: "java", label: "Java" },
-  { value: "csharp", label: "C#" },
-  { value: "cpp", label: "C++" },
-  { value: "rust", label: "Rust" },
-  { value: "go", label: "Go" },
-  { value: "sql", label: "SQL" },
+  { value: "javascript", label: "JavaScript", extension: "js" },
+  { value: "typescript", label: "TypeScript", extension: "ts" },
+  { value: "python", label: "Python", extension: "py" },
+  { value: "java", label: "Java", extension: "java" },
+  { value: "csharp", label: "C#", extension: "cs" },
+  { value: "cpp", label: "C++", extension: "cpp" },
+  { value: "rust", label: "Rust", extension: "rs" },
+  { value: "go", label: "Go", extension: "go" },
+  { value: "sql", label: "SQL", extension: "sql" },
 ];
 
-export function CodeInput({
+export const CodeInput = memo<CodeInputProps>(function CodeInput({
   code,
   language,
   onCodeChange,
@@ -31,8 +22,10 @@ export function CodeInput({
   onExplain,
   onReset,
   disabled = false,
-}: CodeInputProps) {
+}) {
   const isCodeEmpty = !code.trim();
+  const characterCount = code.length;
+  const lineCount = code ? code.split("\n").length : 0;
 
   return (
     <div className="code-input">
@@ -66,8 +59,8 @@ export function CodeInput({
 
       <div className="input-footer">
         <div className="code-stats">
-          <span>Lines: {code.split("\n").length}</span>
-          <span>Characters: {code.length}</span>
+          <span>Lines: {lineCount}</span>
+          <span>Characters: {characterCount}</span>
         </div>
 
         <div className="input-actions">
@@ -89,4 +82,4 @@ export function CodeInput({
       </div>
     </div>
   );
-}
+});
