@@ -2,6 +2,9 @@
 .DS_Store
 .env
 
+# Docker
+.env.docker
+
 # Python
 __pycache__/
 *.pyc

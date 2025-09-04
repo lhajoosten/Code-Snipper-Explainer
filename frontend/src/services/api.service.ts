@@ -1,4 +1,4 @@
-import { ExplainCodeRequest, ExplainCodeResponse, ApiError, HealthResponse } from '../types';
+import { ExplainCodeRequest, ExplainCodeResponse, RefactorCodeRequest, RefactorCodeResponse, GenerateTestsRequest, GenerateTestsResponse, ApiError, HealthResponse } from '../types';
 
 // Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -201,6 +201,22 @@ export class ApiService {
     }
 
     /**
+     * Refactor code using AI (with caching for identical requests)
+     */
+    async refactorCode(request: RefactorCodeRequest): Promise<RefactorCodeResponse> {
+        // Use cache for POST requests with same content (refactoring suggestions are deterministic)
+        return httpClient.post<RefactorCodeResponse>('/api/v1/refactor/', request, true);
+    }
+
+    /**
+     * Generate tests for code using AI (with caching for identical requests)
+     */
+    async generateTests(request: GenerateTestsRequest): Promise<GenerateTestsResponse> {
+        // Use cache for POST requests with same content (test generation is deterministic)
+        return httpClient.post<GenerateTestsResponse>('/api/v1/tests/', request, true);
+    }
+
+    /**
      * Health check endpoint
      */
     async getHealth(): Promise<HealthResponse> {
@@ -228,6 +244,14 @@ export const apiService = new ApiService();
 // Export main function for convenience (following your existing pattern)
 export async function explainCodeApi(request: ExplainCodeRequest): Promise<ExplainCodeResponse> {
     return apiService.explainCode(request);
+}
+
+export async function refactorCodeApi(request: RefactorCodeRequest): Promise<RefactorCodeResponse> {
+    return apiService.refactorCode(request);
+}
+
+export async function generateTestsApi(request: GenerateTestsRequest): Promise<GenerateTestsResponse> {
+    return apiService.generateTests(request);
 }
 
 // Export health check for Header component status indicator

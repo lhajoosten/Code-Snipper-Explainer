@@ -867,6 +867,143 @@ body {
   outline-offset: 2px;
 }
 
+/* Tab Navigation */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: var(--spacing-lg);
+}
+
+.tab {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--gray-600);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.tab:hover {
+  color: var(--gray-800);
+  background-color: var(--gray-50);
+}
+
+.tab.active {
+  color: var(--primary-600);
+  border-bottom-color: var(--primary-500);
+}
+
+.tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--primary-500);
+}
+
+/* Refactor and Test Output Styles */
+.refactor-section,
+.test-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.refactor-section h4,
+.test-section h4 {
+  color: var(--gray-800);
+  margin-bottom: var(--spacing-md);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.improvements-list,
+.test-cases-list {
+  list-style: none;
+  padding: 0;
+}
+
+.improvements-list li,
+.test-cases-list li {
+  padding: var(--spacing-sm) 0;
+  padding-left: var(--spacing-md);
+  position: relative;
+  color: var(--gray-700);
+}
+
+.improvements-list li::before,
+.test-cases-list li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--success-500);
+  font-weight: bold;
+}
+
+.setup-content {
+  background-color: var(--warning-50);
+  border: 1px solid var(--warning-200);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  color: var(--gray-700);
+}
+
+.setup-content p {
+  margin-bottom: var(--spacing-sm);
+}
+
+.setup-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Button variants for new actions */
+.btn-success {
+  background-color: var(--success-500);
+  color: white;
+  border: 1px solid var(--success-500);
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: var(--success-600);
+  border-color: var(--success-600);
+}
+
+.btn-info {
+  background-color: var(--primary-500);
+  color: white;
+  border: 1px solid var(--primary-500);
+}
+
+.btn-info:hover:not(:disabled) {
+  background-color: var(--primary-600);
+  border-color: var(--primary-600);
+}
+
+/* Responsive adjustments for new buttons */
+@media (max-width: 768px) {
+  .input-actions {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .input-actions .btn {
+    width: 100%;
+  }
+
+  .tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+  }
+}
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   :root {

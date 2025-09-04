@@ -20,6 +20,8 @@ export const CodeInput = memo<CodeInputProps>(function CodeInput({
   onCodeChange,
   onLanguageChange,
   onExplain,
+  onRefactor,
+  onGenerateTests,
   onReset,
   disabled = false,
 }) {
@@ -77,6 +79,20 @@ export const CodeInput = memo<CodeInputProps>(function CodeInput({
             disabled={disabled || isCodeEmpty}
           >
             {disabled ? "⏳ Analyzing..." : "🤖 Explain Code"}
+          </button>
+          <button
+            onClick={onRefactor}
+            className="btn btn-success"
+            disabled={disabled || isCodeEmpty}
+          >
+            {disabled ? "⏳ Refactoring..." : "🔧 Refactor Code"}
+          </button>
+          <button
+            onClick={onGenerateTests}
+            className="btn btn-info"
+            disabled={disabled || isCodeEmpty}
+          >
+            {disabled ? "⏳ Generating..." : "🧪 Generate Tests"}
           </button>
         </div>
       </div>

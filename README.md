@@ -191,6 +191,48 @@ npm run dev
 
 Visit: http://localhost:5173
 
+### 🐳 Docker Setup (Recommended)
+
+For easier development and deployment, use Docker Compose:
+
+```bash
+# 1. Clone and setup
+git clone <repo-url>
+cd <repo-root>
+
+# 2. Configure environment
+cp .env.docker .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 3. Start with Docker
+# Windows
+.\docker.ps1 up
+
+# Linux/Mac
+./docker.sh up
+```
+
+**Access URLs:**
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+**Docker Commands:**
+
+```bash
+# View logs
+.\docker.ps1 logs
+
+# Stop services
+.\docker.ps1 down
+
+# Rebuild
+.\docker.ps1 rebuild
+```
+
+See [DOCKER_README.md](DOCKER_README.md) for detailed Docker instructions.
+
 ---
 
 ## 8. Environment Variables
