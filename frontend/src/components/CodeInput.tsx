@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import { memo } from "react";
 import { CodeInputProps, SupportedLanguage } from "../types";
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
@@ -24,6 +24,7 @@ export const CodeInput = memo<CodeInputProps>(function CodeInput({
   onGenerateTests,
   onReset,
   disabled = false,
+  hasUnsavedChanges = false,
 }) {
   const isCodeEmpty = !code.trim();
   const characterCount = code.length;
@@ -32,21 +33,29 @@ export const CodeInput = memo<CodeInputProps>(function CodeInput({
   return (
     <div className="code-input">
       <div className="input-header">
-        <h2>📝 Code Input</h2>
-        <div className="language-selector">
-          <label htmlFor="language">Language:</label>
-          <select
-            id="language"
-            value={language}
-            onChange={(e) => onLanguageChange(e.target.value)}
-            disabled={disabled}
-          >
-            {SUPPORTED_LANGUAGES.map((lang) => (
-              <option key={lang.value} value={lang.value}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
+        <h2>
+          📝 Code Input
+          {hasUnsavedChanges && <span className="unsaved-indicator">●</span>}
+        </h2>
+        <div className="header-actions">
+          {hasUnsavedChanges && (
+            <span className="unsaved-text">Unsaved changes</span>
+          )}
+          <div className="language-selector">
+            <label htmlFor="language">Language:</label>
+            <select
+              id="language"
+              value={language}
+              onChange={(e) => onLanguageChange(e.target.value)}
+              disabled={disabled}
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.value} value={lang.value}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

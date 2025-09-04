@@ -83,6 +83,7 @@ export interface CodeInputProps {
     onGenerateTests: () => void;
     onReset: () => void;
     disabled?: boolean;
+    hasUnsavedChanges?: boolean;
 }
 
 export interface ExplanationOutputProps {

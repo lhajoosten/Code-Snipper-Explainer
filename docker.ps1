@@ -7,12 +7,11 @@ param(
 )
 
 $COMPOSE_FILE = "docker-compose.yml"
-$OVERRIDE_FILE = "docker-compose.override.yml"
 
 # Check if .env.docker exists
-if (-not (Test-Path ".env.docker")) {
-    Write-Host "❌ .env.docker file not found!" -ForegroundColor Red
-    Write-Host "Please copy .env.docker to .env and configure your environment variables."
+if (-not (Test-Path ".env.docker.example")) {
+    Write-Host "❌ .env.docker.example file not found!" -ForegroundColor Red
+    Write-Host "Please copy .env.docker.example to .env.docker and configure your environment variables."
     exit 1
 }
 
@@ -56,7 +55,7 @@ switch ($Command) {
     "up" {
         Test-Docker
         Write-Host ">>> Starting Code Snippet Explainer..." -ForegroundColor Green
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE up -d
+        docker-compose -f $COMPOSE_FILE  up -d
         Write-Host "[OK] Services started!" -ForegroundColor Green
         Write-Host "[WEB] Frontend: http://localhost:5173" -ForegroundColor Blue
         Write-Host "[API] Backend API: http://localhost:8000" -ForegroundColor Blue
@@ -65,48 +64,59 @@ switch ($Command) {
 
     "down" {
         Write-Host "[STOP] Stopping services..." -ForegroundColor Yellow
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE down
+        docker-compose -f $COMPOSE_FILE  down
         Write-Host "[OK] Services stopped!" -ForegroundColor Green
+    }
+
+    "restart" {
+        Write-Host "[RESTART] Restarting services..." -ForegroundColor Yellow
+        docker-compose -f $COMPOSE_FILE  down
+        Write-Host "[CLEAN] Cleaning up containers and volumes..." -ForegroundColor Yellow
+        docker-compose -f $COMPOSE_FILE  down -v --remove-orphans
+        docker system prune -f
+        Write-Host "[OK] Cleanup complete!" -ForegroundColor Green
+        docker-compose -f $COMPOSE_FILE  up -d
+        Write-Host "[OK] Services restarted!" -ForegroundColor Green
     }
 
     "build" {
         Test-Docker
         Write-Host "[BUILD] Building services..." -ForegroundColor Yellow
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE build
+        docker-compose -f $COMPOSE_FILE  build
         Write-Host "[OK] Build complete!" -ForegroundColor Green
     }
 
     "rebuild" {
         Test-Docker
         Write-Host "[REBUILD] Rebuilding services from scratch..." -ForegroundColor Yellow
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE down -v
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE build --no-cache
+        docker-compose -f $COMPOSE_FILE  down -v
+        docker-compose -f $COMPOSE_FILE  build --no-cache
         Write-Host "[OK] Rebuild complete!" -ForegroundColor Green
     }
 
     "logs" {
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE logs -f
+        docker-compose -f $COMPOSE_FILE  logs -f
     }
 
     "logs-backend" {
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE logs -f backend
+        docker-compose -f $COMPOSE_FILE  logs -f backend
     }
 
     "logs-frontend" {
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE logs -f frontend
+        docker-compose -f $COMPOSE_FILE  logs -f frontend
     }
 
     "shell-backend" {
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE exec backend /bin/bash
+        docker-compose -f $COMPOSE_FILE  exec backend /bin/bash
     }
 
     "shell-frontend" {
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE exec frontend /bin/sh
+        docker-compose -f $COMPOSE_FILE  exec frontend /bin/sh
     }
 
     "clean" {
         Write-Host "[CLEAN] Cleaning up containers and volumes..." -ForegroundColor Yellow
-        docker-compose -f $COMPOSE_FILE -f $OVERRIDE_FILE down -v --remove-orphans
+        docker-compose -f $COMPOSE_FILE  down -v --remove-orphans
         docker system prune -f
         Write-Host "[OK] Cleanup complete!" -ForegroundColor Green
     }

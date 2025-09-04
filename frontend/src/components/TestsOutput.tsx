@@ -1,4 +1,13 @@
 import React from "react";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import {
+  oneDark,
+  oneLight,
+  darcula,
+  materialDark,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
+import remarkGfm from "remark-gfm";
 import { TestsOutputProps } from "../types";
 
 export function TestsOutput({ result }: TestsOutputProps) {
@@ -38,9 +47,39 @@ export function TestsOutput({ result }: TestsOutputProps) {
           <div className="test-section">
             <h4>⚙️ Setup Instructions</h4>
             <div className="setup-content">
-              {result.setup_instructions.split("\n").map((line, index) => (
-                <p key={index}>{line}</p>
-              ))}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, className, children, ...props }: any) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const isInline = !match;
+                    return !isInline && match ? (
+                      <SyntaxHighlighter
+                        style={materialDark}
+                        language={match[1]}
+                        PreTag="div"
+                        showLineNumbers={true}
+                        wrapLines={true}
+                        wrapLongLines={true}
+                        customStyle={{
+                          margin: "0.5rem 0",
+                          borderRadius: "0.5rem",
+                          fontSize: "0.875rem",
+                        }}
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, "")}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {result.setup_instructions}
+              </ReactMarkdown>
             </div>
           </div>
         )}
@@ -48,9 +87,22 @@ export function TestsOutput({ result }: TestsOutputProps) {
         <div className="test-section">
           <h4>💻 Generated Test Code</h4>
           <div className="code-block">
-            <pre>
-              <code>{result.test_code}</code>
-            </pre>
+            <SyntaxHighlighter
+              style={materialDark}
+              language="python"
+              PreTag="div"
+              showLineNumbers={true}
+              wrapLines={true}
+              wrapLongLines={true}
+              customStyle={{
+                margin: 0,
+                borderRadius: "0.5rem",
+                fontSize: "0.875rem",
+                lineHeight: "1.5",
+              }}
+            >
+              {result.test_code}
+            </SyntaxHighlighter>
           </div>
         </div>
       </div>

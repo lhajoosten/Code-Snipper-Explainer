@@ -62,9 +62,12 @@ export const ExplanationOutput = memo<ExplanationOutputProps>(
                 if (!isInline && language) {
                   return (
                     <SyntaxHighlighter
-                      style={vscDarkPlus as any}
+                      style={vscDarkPlus}
                       language={language}
                       PreTag="div"
+                      showLineNumbers={true}
+                      wrapLines={true}
+                      wrapLongLines={true}
                       customStyle={{
                         margin: "1rem 0",
                         borderRadius: "0.75rem",

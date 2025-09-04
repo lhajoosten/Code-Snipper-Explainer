@@ -1,23 +1,29 @@
 import React, { useState, useCallback } from "react";
 import { CodeInput } from "./components/CodeInput";
-import { ExplanationOutput } from "./components/ExplanationOutput";
-import { RefactorOutput } from "./components/RefactorOutput";
-import { TestsOutput } from "./components/TestsOutput";
+import { OutputSection } from "./components/OutputSection";
 import { Header } from "./components/Header";
-import { LoadingSpinner } from "./components/LoadingSpinner";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { useCodeEditor } from "./hooks/useCodeEditor";
+import { useKeyboardShortcuts, TabType } from "./hooks/useKeyboardShortcuts";
 import { useExplainCode } from "./hooks/useExplainCode";
 import { useRefactorCode } from "./hooks/useRefactorCode";
 import { useGenerateTests } from "./hooks/useGenerateTests";
-import { AppState } from "./types";
 import "./App.css";
 
 export default function App() {
-  const [code, setCode] = useState("");
-  const [language, setLanguage] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"explain" | "refactor" | "tests">(
-    "explain"
-  );
+  const [activeTab, setActiveTab] = useState<TabType>("explain");
+
+  const {
+    code,
+    language,
+    hasUnsavedChanges,
+    setCode,
+    setLanguage,
+    reset: resetCode,
+    markAsSaved,
+  } = useCodeEditor();
 
   const {
     explainCode: explainCodeAction,
@@ -49,6 +55,20 @@ export default function App() {
   const isLoading = explainLoading || refactorLoading || testsLoading;
   const currentError = explainError || refactorError || testsError;
 
+  const handleQuickAction = useCallback(() => {
+    switch (activeTab) {
+      case "explain":
+        handleExplain();
+        break;
+      case "refactor":
+        handleRefactor();
+        break;
+      case "tests":
+        handleGenerateTests();
+        break;
+    }
+  }, [activeTab]);
+
   const handleExplain = useCallback(async () => {
     if (!code.trim()) {
       clearExplainError();
@@ -56,11 +76,12 @@ export default function App() {
     }
 
     setActiveTab("explain");
+    markAsSaved();
     await explainCodeAction({
       code: code.trim(),
       language: language || undefined,
     });
-  }, [code, language, explainCodeAction, clearExplainError]);
+  }, [code, language, explainCodeAction, clearExplainError, markAsSaved]);
 
   const handleRefactor = useCallback(async () => {
     if (!code.trim()) {
@@ -69,12 +90,13 @@ export default function App() {
     }
 
     setActiveTab("refactor");
+    markAsSaved();
     await refactorCodeAction({
       code: code.trim(),
       language: language || undefined,
       goal: "improve readability and maintainability",
     });
-  }, [code, language, refactorCodeAction, clearRefactorError]);
+  }, [code, language, refactorCodeAction, clearRefactorError, markAsSaved]);
 
   const handleGenerateTests = useCallback(async () => {
     if (!code.trim()) {
@@ -83,113 +105,80 @@ export default function App() {
     }
 
     setActiveTab("tests");
+    markAsSaved();
     await generateTestsAction({
       code: code.trim(),
       language: language || undefined,
       test_framework: "pytest",
     });
-  }, [code, language, generateTestsAction, clearTestsError]);
+  }, [code, language, generateTestsAction, clearTestsError, markAsSaved]);
 
   const handleReset = useCallback(() => {
-    setCode("");
-    setLanguage("");
+    resetCode();
     setActiveTab("explain");
     clearExplainAll();
     clearRefactorAll();
     clearTestsAll();
-  }, [clearExplainAll, clearRefactorAll, clearTestsAll]);
+  }, [resetCode, clearExplainAll, clearRefactorAll, clearTestsAll]);
 
-  // Optimize code change to prevent unnecessary re-renders
-  const handleCodeChange = useCallback((newCode: string) => {
-    setCode(newCode);
-  }, []);
-
-  const handleLanguageChange = useCallback((newLanguage: string) => {
-    setLanguage(newLanguage);
-  }, []);
+  // Setup keyboard shortcuts
+  useKeyboardShortcuts({
+    activeTab,
+    setActiveTab,
+    isLoading,
+    code,
+    onQuickAction: handleQuickAction,
+  });
 
   return (
-    <ErrorBoundary>
-      <div className="app">
-        <Header />
+    <ThemeProvider>
+      <ErrorBoundary>
+        <div className="app">
+          <Header />
+          <div className="theme-toggle-container">
+            <ThemeToggle />
+          </div>
 
-        <main className="main-content">
-          <div className="container">
-            <div className="grid">
-              <div className="input-section">
-                <CodeInput
+          <main className="main-content">
+            <div className="container">
+              <div className="grid">
+                <div className="input-section">
+                  <CodeInput
+                    code={code}
+                    language={language}
+                    onCodeChange={setCode}
+                    onLanguageChange={setLanguage}
+                    onExplain={handleExplain}
+                    onRefactor={handleRefactor}
+                    onGenerateTests={handleGenerateTests}
+                    onReset={handleReset}
+                    disabled={isLoading}
+                    hasUnsavedChanges={hasUnsavedChanges}
+                  />
+                </div>
+
+                <OutputSection
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  isLoading={isLoading}
+                  error={currentError}
+                  onErrorDismiss={() => {
+                    clearExplainError();
+                    clearRefactorError();
+                    clearTestsError();
+                  }}
+                  onRetry={handleQuickAction}
+                  onQuickAction={handleQuickAction}
                   code={code}
-                  language={language}
-                  onCodeChange={handleCodeChange}
-                  onLanguageChange={handleLanguageChange}
-                  onExplain={handleExplain}
-                  onRefactor={handleRefactor}
-                  onGenerateTests={handleGenerateTests}
-                  onReset={handleReset}
-                  disabled={isLoading}
+                  explainResult={explainResult}
+                  refactorResult={refactorResult}
+                  testsResult={testsResult}
                 />
               </div>
-
-              <div className="output-section">
-                {isLoading && <LoadingSpinner />}
-                {currentError && (
-                  <div className="error-container">
-                    <h3>❌ Error</h3>
-                    <p>{currentError}</p>
-                    <button
-                      onClick={() => {
-                        clearExplainError();
-                        clearRefactorError();
-                        clearTestsError();
-                      }}
-                      className="btn btn-secondary"
-                    >
-                      Clear Error
-                    </button>
-                  </div>
-                )}
-
-                {/* Tab Navigation */}
-                <div className="tabs">
-                  <button
-                    className={`tab ${activeTab === "explain" ? "active" : ""}`}
-                    onClick={() => setActiveTab("explain")}
-                  >
-                    🤖 Explain
-                  </button>
-                  <button
-                    className={`tab ${
-                      activeTab === "refactor" ? "active" : ""
-                    }`}
-                    onClick={() => setActiveTab("refactor")}
-                  >
-                    🔧 Refactor
-                  </button>
-                  <button
-                    className={`tab ${activeTab === "tests" ? "active" : ""}`}
-                    onClick={() => setActiveTab("tests")}
-                  >
-                    🧪 Tests
-                  </button>
-                </div>
-
-                {/* Tab Content */}
-                <div className="tab-content">
-                  {activeTab === "explain" && explainResult && !isLoading && (
-                    <ExplanationOutput result={explainResult} />
-                  )}
-                  {activeTab === "refactor" && refactorResult && !isLoading && (
-                    <RefactorOutput result={refactorResult} />
-                  )}
-                  {activeTab === "tests" && testsResult && !isLoading && (
-                    <TestsOutput result={testsResult} />
-                  )}
-                </div>
-              </div>
             </div>
-          </div>
-        </main>
-      </div>
-    </ErrorBoundary>
+          </main>
+        </div>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }

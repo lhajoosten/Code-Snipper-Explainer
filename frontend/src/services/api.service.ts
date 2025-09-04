@@ -5,45 +5,67 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 const API_TIMEOUT = 30000; // 30 seconds
 
 /**
- * Custom error class for API-related errors
+ * Represents an error returned by an API service.
  */
 export class ApiServiceError extends Error {
-    constructor(
-        message: string,
-        public statusCode?: number,
-        public apiError?: ApiError
-    ) {
+    public readonly statusCode?: number;
+    public readonly apiError?: ApiError;
+
+    /**
+     * Creates an instance of ApiServiceError.
+     * @param message - A descriptive error message.
+     * @param statusCode - The HTTP status code associated with the error.
+     * @param apiError - The detailed API error object.
+     */
+    constructor(message: string, statusCode?: number, apiError?: ApiError) {
         super(message);
         this.name = 'ApiServiceError';
+        this.statusCode = statusCode;
+        this.apiError = apiError;
+    }
+
+    /**
+     * Returns a formatted string representation of the error.
+     * @returns A string containing the error details.
+     */
+    public toString(): string {
+        return `ApiServiceError: ${this.message} (Status Code: ${this.statusCode ?? 'N/A'})`;
     }
 }
 
-/**
- * Request cache for deduplication
- */
+// /**
+//  * Request cache for deduplication
+//  */
 class RequestCache {
+
     private cache = new Map<string, Promise<any>>();
-    private readonly TTL = 5 * 60 * 1000; // 5 minutes
+    private static readonly DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    constructor(private ttl: number = RequestCache.DEFAULT_TTL_MS) { }
 
     private generateKey(endpoint: string, options: RequestInit): string {
-        return `${endpoint}:${JSON.stringify(options.body || '')}`;
+        const body = options.body ? JSON.stringify(options.body) : '';
+        return `${endpoint}:${body}`;
+
     }
 
     get<T>(endpoint: string, options: RequestInit): Promise<T> | null {
         const key = this.generateKey(endpoint, options);
         return this.cache.get(key) || null;
+
     }
 
     set<T>(endpoint: string, options: RequestInit, promise: Promise<T>): Promise<T> {
         const key = this.generateKey(endpoint, options);
         this.cache.set(key, promise);
+        this.scheduleCacheCleanup(key);
+        return promise;
+    }
 
-        // Auto-cleanup after TTL
+    private scheduleCacheCleanup(key: string): void {
         setTimeout(() => {
             this.cache.delete(key);
-        }, this.TTL);
-
-        return promise;
+        }, this.ttl);
     }
 
     clear(): void {
