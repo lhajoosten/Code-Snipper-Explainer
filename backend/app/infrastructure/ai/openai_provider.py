@@ -10,7 +10,11 @@ from app.domain.exceptions import (
 )
 from app.domain.value_objects.code_snippet import CodeSnippet
 from app.domain.value_objects.code_explanation import CodeExplanation
+from app.domain.value_objects.code_refactor import CodeRefactor
+from app.domain.value_objects.test_scaffold import TestScaffold
 from app.infrastructure.ai.prompts.explain_prompts import ExplainPrompts
+from app.infrastructure.ai.prompts.refactor_prompts import RefactorPrompts
+from app.infrastructure.ai.prompts.test_generation_prompts import TestGenerationPrompts
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,8 @@ class OpenAIProvider(AIProvider):
         self._max_retries = max_retries
         self._base_url = "https://api.openai.com/v1"
         self._prompts = ExplainPrompts()
+        self._refactor_prompts = RefactorPrompts()
+        self._test_prompts = TestGenerationPrompts()
 
         # Initialize HTTP client with connection pooling
         self._client: Optional[httpx.AsyncClient] = None
@@ -133,6 +139,242 @@ class OpenAIProvider(AIProvider):
         except Exception as e:
             logger.error(f"Unexpected error calling OpenAI: {e}")
             raise AIProviderError(f"Failed to get explanation from OpenAI: {str(e)}")
+
+    async def refactor_code(
+        self, code_snippet: CodeSnippet, goal: Optional[str] = None
+    ) -> CodeRefactor:
+        """
+        Generate refactoring suggestions for the given code snippet using OpenAI.
+
+        Args:
+            code_snippet: The code snippet to refactor
+            goal: Optional specific refactoring goal
+
+        Returns:
+            A code refactor suggestion with metadata
+
+        Raises:
+            AIProviderError: If the API call fails
+            AIProviderTimeoutError: If the request times out
+            AIProviderQuotaError: If quota is exceeded
+        """
+        try:
+            logger.info(
+                f"Requesting refactoring suggestions from OpenAI for {len(code_snippet.content)} characters"
+            )
+
+            # Prepare the prompts
+            system_prompt = self._refactor_prompts.get_system_prompt()
+            user_prompt = self._refactor_prompts.get_user_prompt(
+                code_snippet.content, goal
+            )
+
+            # Make API request
+            response_data = await self._make_completion_request(
+                system_prompt, user_prompt
+            )
+
+            # Extract refactoring suggestion from response
+            refactor_content = response_data["choices"][0]["message"]["content"]
+
+            if not refactor_content:
+                raise AIProviderError("Empty response from OpenAI")
+
+            logger.info("Successfully received refactoring suggestions from OpenAI")
+
+            # Parse the AI response to extract refactored code and improvements
+            refactored_code, improvements = self._parse_refactor_response(
+                refactor_content
+            )
+
+            # Create code refactor value object
+            return CodeRefactor(
+                original_snippet=code_snippet,
+                refactored_code=refactored_code,
+                explanation=refactor_content,
+                improvements=improvements,
+                provider=self.provider_name,
+                is_placeholder=False,
+            )
+
+        except httpx.TimeoutException as e:
+            logger.error(f"OpenAI refactor request timed out: {e}")
+            raise AIProviderTimeoutError(
+                f"Request timed out after {self._timeout} seconds"
+            )
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                logger.error("OpenAI quota exceeded")
+                raise AIProviderQuotaError("OpenAI API quota exceeded")
+            elif e.response.status_code >= 500:
+                logger.error(f"OpenAI server error: {e.response.status_code}")
+                raise AIProviderError(f"OpenAI server error: {e.response.status_code}")
+            else:
+                logger.error(
+                    f"OpenAI API error: {e.response.status_code} - {e.response.text}"
+                )
+                raise AIProviderError(f"OpenAI API error: {e.response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Unexpected error calling OpenAI for refactoring: {e}")
+            raise AIProviderError(
+                f"Failed to get refactoring suggestions from OpenAI: {str(e)}"
+            )
+
+    def _parse_refactor_response(self, response_content: str) -> tuple[str, list[str]]:
+        """
+        Parse the AI response to extract refactored code and improvements.
+
+        Args:
+            response_content: The full AI response content
+
+        Returns:
+            Tuple of (refactored_code, improvements_list)
+        """
+        import re
+
+        # Try to extract refactored code from code blocks
+        code_block_pattern = r"```(?:python|py|code)?\n?(.*?)\n?```"
+        code_matches = re.findall(
+            code_block_pattern, response_content, re.DOTALL | re.IGNORECASE
+        )
+
+        refactored_code = ""
+        if code_matches:
+            # Use the first code block as the refactored code
+            refactored_code = code_matches[0].strip()
+        else:
+            # If no code blocks found, try to extract from common patterns
+            lines = response_content.split("\n")
+            in_code_section = False
+            code_lines = []
+
+            for line in lines:
+                if any(
+                    keyword in line.lower()
+                    for keyword in ["refactored code", "improved code", "new code"]
+                ):
+                    in_code_section = True
+                    continue
+                elif in_code_section and line.strip() and not line.startswith("#"):
+                    if line.startswith("    ") or line.startswith("\t"):
+                        code_lines.append(line)
+                    elif len(code_lines) > 0:
+                        # Stop if we hit a non-indented line after starting code
+                        break
+
+            if code_lines:
+                refactored_code = "\n".join(code_lines).strip()
+
+        # If still no code found, use a placeholder
+        if not refactored_code:
+            refactored_code = "# Refactored code would go here"
+
+        # Extract improvements from the response
+        improvements = []
+        lines = response_content.split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if any(
+                keyword in line.lower()
+                for keyword in ["improvement", "benefit", "advantage", "better"]
+            ):
+                # Clean up the improvement text
+                improvement = re.sub(r"^[-•*]\s*", "", line)
+                improvement = re.sub(r"^.*?:\s*", "", improvement)
+                if improvement and len(improvement) > 10:  # Avoid too short items
+                    improvements.append(improvement)
+
+        # If no improvements found, add some defaults
+        if not improvements:
+            improvements = [
+                "Improved code structure",
+                "Enhanced readability",
+                "Better maintainability",
+            ]
+
+        return refactored_code, improvements
+
+    async def generate_tests(
+        self, code_snippet: CodeSnippet, test_framework: Optional[str] = None
+    ) -> TestScaffold:
+        """
+        Generate unit test scaffold for the given code snippet using OpenAI.
+
+        Args:
+            code_snippet: The code snippet to generate tests for
+            test_framework: Optional test framework preference
+
+        Returns:
+            A test scaffold with metadata
+
+        Raises:
+            AIProviderError: If the API call fails
+            AIProviderTimeoutError: If the request times out
+            AIProviderQuotaError: If quota is exceeded
+        """
+        try:
+            logger.info(
+                f"Requesting test generation from OpenAI for {len(code_snippet.content)} characters"
+            )
+
+            # Prepare the prompts
+            system_prompt = self._test_prompts.get_system_prompt()
+            user_prompt = self._test_prompts.get_user_prompt(
+                code_snippet.content, code_snippet.language, test_framework
+            )
+
+            # Make API request
+            response_data = await self._make_completion_request(
+                system_prompt, user_prompt
+            )
+
+            # Extract test code from response
+            test_content = response_data["choices"][0]["message"]["content"]
+
+            if not test_content:
+                raise AIProviderError("Empty response from OpenAI")
+
+            logger.info("Successfully received test scaffold from OpenAI")
+
+            # Create test scaffold value object
+            return TestScaffold(
+                original_snippet=code_snippet,
+                test_code=test_content,
+                test_framework=test_framework or "pytest",
+                test_cases=[
+                    "test_basic_functionality",
+                    "test_edge_cases",
+                ],  # TODO: Extract from AI response
+                setup_instructions=None,  # TODO: Extract from AI response if needed
+                provider=self.provider_name,
+                is_placeholder=False,
+            )
+
+        except httpx.TimeoutException as e:
+            logger.error(f"OpenAI test generation request timed out: {e}")
+            raise AIProviderTimeoutError(
+                f"Request timed out after {self._timeout} seconds"
+            )
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                logger.error("OpenAI quota exceeded")
+                raise AIProviderQuotaError("OpenAI API quota exceeded")
+            elif e.response.status_code >= 500:
+                logger.error(f"OpenAI server error: {e.response.status_code}")
+                raise AIProviderError(f"OpenAI server error: {e.response.status_code}")
+            else:
+                logger.error(
+                    f"OpenAI API error: {e.response.status_code} - {e.response.text}"
+                )
+                raise AIProviderError(f"OpenAI API error: {e.response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Unexpected error calling OpenAI for test generation: {e}")
+            raise AIProviderError(f"Failed to generate tests from OpenAI: {str(e)}")
 
     async def _make_completion_request(
         self, system_prompt: str, user_prompt: str

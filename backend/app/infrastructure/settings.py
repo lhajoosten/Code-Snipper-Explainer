@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o"
     ai_provider: str = "openai"
-    ai_timeout: int = 30
+    ai_timeout: int = 60
 
     # Application Settings
     max_code_length: int = 50000
@@ -35,15 +35,14 @@ class Settings(BaseSettings):
     @field_validator("ai_provider")
     @classmethod
     def validate_ai_provider(cls, v: str) -> str:
-        allowed = ["fake", "openai"]
-        if v not in allowed:
-            raise ValueError(f"ai_provider must be one of {allowed}")
+        if v != "openai":
+            raise ValueError("Only 'openai' is supported as ai_provider")
         return v
 
     @model_validator(mode="after")
     def validate_openai_key(self) -> "Settings":
-        if self.ai_provider == "openai" and not self.openai_api_key:
-            raise ValueError("openai_api_key is required when ai_provider is 'openai'")
+        if not self.openai_api_key:
+            raise ValueError("openai_api_key is required")
         return self
 
     class Config:

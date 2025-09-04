@@ -43,4 +43,3 @@ async def explain_code(
     response.headers["Cache-Control"] = "public, max-age=3600"  # Cache for 1 hour
 
     return result
-    return result
